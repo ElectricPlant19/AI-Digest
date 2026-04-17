@@ -6,13 +6,13 @@ import os
 from datetime import datetime
 from typing import List, Tuple
 
-from openai import OpenAI
+from openai import OpenAI, RateLimitError
 
 from sources import Item
 
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-MODEL = "google/gemma-3-27b-it:free"
+MODEL = "google/gemma-4-26b-a4b-it:free"
 
 
 SYSTEM_PROMPT = """You are an expert AI researcher writing a daily briefing for a busy \
@@ -31,15 +31,16 @@ Rules:
 Output format: clean markdown. Use ## for section headers, - for bullets. No preamble, no closing."""
 
 
-def _format_items_for_prompt(items: List[Item]) -> str:
+def _format_items_for_prompt(items: List[Item], summary_max_chars: int = 400) -> str:
     lines = []
     for i, item in enumerate(items, 1):
+        summary = (item.summary or "")[:summary_max_chars]
         lines.append(
             f"[{i}] Source: {item.source}\n"
             f"    Title: {item.title}\n"
             f"    URL: {item.url}\n"
             f"    Published: {item.published.strftime('%Y-%m-%d %H:%M UTC')}\n"
-            f"    Excerpt: {item.summary}\n"
+            f"    Excerpt: {summary}\n"
         )
     return "\n".join(lines)
 
@@ -122,17 +123,56 @@ def summarize_digest(items: List[Item]) -> Tuple[str, str]:
         api_key=os.environ["OPENROUTER_API_KEY"],
     )
 
-    formatted = _format_items_for_prompt(items)
-    user_msg = f"Today's items ({len(items)} total):\n\n{formatted}\n\nWrite the briefing."
+    def _build_user_msg(max_items: int, summary_max_chars: int) -> str:
+        subset = items[:max_items]
+        formatted = _format_items_for_prompt(subset, summary_max_chars=summary_max_chars)
+        return f"Today's items ({len(subset)} total):\n\n{formatted}\n\nWrite the briefing."
 
-    resp = client.chat.completions.create(
-        model=MODEL,
-        max_tokens=2000,
-        messages=[
+    def _call_chat(user_msg: str):
+        messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_msg},
-        ],
-    )
+        ]
+        try:
+            return client.chat.completions.create(
+                model=MODEL,
+                max_tokens=2000,
+                messages=messages,
+            )
+        except Exception as exc:
+            # Some providers (e.g., Gemma) reject system/dev instructions.
+            if "Developer instruction is not enabled" in str(exc):
+                return client.chat.completions.create(
+                    model=MODEL,
+                    max_tokens=2000,
+                    messages=[
+                        {"role": "user", "content": f"{SYSTEM_PROMPT}\n\n{user_msg}"},
+                    ],
+                )
+            raise
+
+    attempts = [
+        {"max_items": len(items), "summary_max_chars": 400},
+    ]
+    if len(items) > 20:
+        attempts.append({"max_items": 20, "summary_max_chars": 250})
+
+    resp = None
+    last_exc = None
+    for attempt in attempts:
+        user_msg = _build_user_msg(
+            max_items=attempt["max_items"],
+            summary_max_chars=attempt["summary_max_chars"],
+        )
+        try:
+            resp = _call_chat(user_msg)
+            break
+        except RateLimitError as exc:
+            last_exc = exc
+            resp = None
+            continue
+    if resp is None and last_exc is not None:
+        raise last_exc
     markdown = (resp.choices[0].message.content or "").strip()
     text_with_footer = markdown + "\n\n---\nUnsubscribe: {{unsubscribe_url}}\n"
     return _markdown_to_html(markdown), text_with_footer
