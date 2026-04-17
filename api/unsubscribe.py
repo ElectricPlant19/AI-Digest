@@ -6,7 +6,7 @@ then 302-redirects to /unsubscribed.html.
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
-from _shared import (
+from api._shared import (
     valid_email,
     verify_token,
     read_subscribers,

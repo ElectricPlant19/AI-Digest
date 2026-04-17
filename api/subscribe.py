@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler
 
-from _shared import (
+from api._shared import (
     valid_email,
     read_subscribers,
     write_subscribers,
