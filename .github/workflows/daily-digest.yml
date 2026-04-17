@@ -1,0 +1,34 @@
+name: Daily AI Digest
+
+on:
+  schedule:
+    # 7:00 AM IST = 01:30 UTC. Adjust to your timezone as needed.
+    - cron: "30 1 * * *"
+  workflow_dispatch:  # lets you trigger manually from the Actions tab
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run digest bot
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          DIGEST_TO_EMAIL: ${{ secrets.DIGEST_TO_EMAIL }}
+          DIGEST_FROM_EMAIL: ${{ secrets.DIGEST_FROM_EMAIL }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}  # optional
+          UNSUB_SECRET: ${{ secrets.UNSUB_SECRET }}
+          PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL }}
+        run: python src/main.py

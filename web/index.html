@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI Agents Daily — Subscribe</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, system-ui, "Segoe UI", sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #f6f8fb 0%, #eef2f7 100%);
+      color: #1a1a1a;
+      padding: 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0, 20, 60, .08);
+      padding: 40px 32px;
+      width: 100%;
+      max-width: 440px;
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    .sub { color: #666; margin: 0 0 24px; font-size: 15px; line-height: 1.5; }
+    form { display: flex; flex-direction: column; gap: 12px; }
+    input[type=email] {
+      padding: 12px 14px;
+      font-size: 16px;
+      border: 1px solid #d0d7de;
+      border-radius: 10px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    input[type=email]:focus { border-color: #0066cc; }
+    button {
+      padding: 12px 14px;
+      font-size: 16px;
+      font-weight: 600;
+      border: 0;
+      border-radius: 10px;
+      background: #1a1a1a;
+      color: #fff;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    button:hover:not(:disabled) { background: #000; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .msg { margin-top: 14px; font-size: 14px; min-height: 20px; }
+    .msg.ok { color: #137333; }
+    .msg.err { color: #c5221f; }
+    footer { color: #8a93a0; font-size: 12px; margin-top: 24px; text-align: center; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>🤖 AI Agents Daily</h1>
+    <p class="sub">A one-minute morning TLDR on agentic AI, LLM tooling, and notable model releases. Delivered daily. Unsubscribe anytime.</p>
+    <form id="f">
+      <input type="email" name="email" placeholder="you@example.com" required autocomplete="email">
+      <button type="submit" id="btn">Subscribe</button>
+    </form>
+    <p class="msg" id="msg"></p>
+    <footer>No spam. One email per day. Your address is only used to send the digest.</footer>
+  </main>
+  <script>
+    const f = document.getElementById('f');
+    const btn = document.getElementById('btn');
+    const msg = document.getElementById('msg');
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      msg.className = 'msg';
+      msg.textContent = '';
+      btn.disabled = true;
+      btn.textContent = 'Subscribing…';
+      try {
+        const email = f.email.value.trim();
+        const r = await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.ok) {
+          msg.className = 'msg ok';
+          msg.textContent = data.message || "You're in. Check your inbox tomorrow morning.";
+          f.reset();
+        } else {
+          msg.className = 'msg err';
+          msg.textContent = data.error || 'Something went wrong. Try again in a moment.';
+        }
+      } catch (err) {
+        msg.className = 'msg err';
+        msg.textContent = 'Network error. Try again.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Subscribe';
+      }
+    });
+  </script>
+</body>
+</html>
